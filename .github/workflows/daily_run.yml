@@ -2,42 +2,13 @@ name: GA4 to Snowflake Daily Pipeline
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Every 10 minutes (for testing)
-    # - cron: '30 1 * * *'  # Uncomment this and remove above line for daily 7AM IST
-  workflow_dispatch:          # Manual trigger
+    - cron: '*/4 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Dependencies
-        run: pip install -r requirements.txt
-
-      - name: Create key.json
-        run: echo "${{ secrets.GA4_KEY_JSON_B64 }}" | base64 --decode > key.json
-
-      - name: Create rsa_key.p8
-        run: echo "${{ secrets.RSA_KEY_B64 }}" | base64 --decode > rsa_key.p8
-
-      - name: Create .env file
-        run: |
-          echo "SNOWFLAKE_ACCOUNT=${{ secrets.SNOWFLAKE_ACCOUNT }}" >> .env
-          echo "SNOWFLAKE_USER=${{ secrets.SNOWFLAKE_USER }}" >> .env
-          echo "SNOWFLAKE_PRIVATE_KEY_PATH=rsa_key.p8" >> .env
-          echo "SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}" >> .env
-          echo "SNOWFLAKE_WAREHOUSE=${{ secrets.SNOWFLAKE_WAREHOUSE }}" >> .env
-          echo "SNOWFLAKE_DATABASE=${{ secrets.SNOWFLAKE_DATABASE }}" >> .env
-          echo "SNOWFLAKE_SCHEMA=${{ secrets.SNOWFLAKE_SCHEMA }}" >> .env
-          echo "SNOWFLAKE_ROLE=${{ secrets.SNOWFLAKE_ROLE }}" >> .env
-
-      - name: Run GA4 to Snowflake Pipeline
-        run: python ga4_to_snowflake.py
+      - name: Test Scheduling
+        run: echo "Scheduled run working at $(date)"
