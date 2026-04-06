@@ -1,0 +1,5 @@
+google-analytics-data
+google-auth
+snowflake-connector-python
+cryptography
+python-dotenv
