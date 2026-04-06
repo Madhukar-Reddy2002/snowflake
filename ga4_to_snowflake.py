@@ -1,7 +1,7 @@
 import os
 import json
 from dotenv import load_dotenv
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from google.oauth2 import service_account
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import RunReportRequest, DateRange, Metric, Dimension
@@ -106,7 +106,7 @@ def fetch_ga4_data(fetch_date):
     rows = []
     for row in response.rows:
         rows.append({
-            "date"           : row.dimension_values[0].value,
+            "date": datetime.strptime(row.dimension_values[0].value, "%Y%m%d").strftime("%Y-%m-%d"),
             "device_category": row.dimension_values[1].value,
             "sessions"       : int(row.metric_values[0].value),
         })
