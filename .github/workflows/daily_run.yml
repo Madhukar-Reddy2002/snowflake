@@ -1,1 +1,49 @@
+name: GA4 to Snowflake Daily Pipeline
 
+on:
+  schedule:
+    - cron: '30 1 * * *'  # Runs daily at 7:00 AM IST (1:30 AM UTC)
+  workflow_dispatch:        # Allows manual trigger from GitHub UI
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout repo ──
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # ── 2. Setup Python ──
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # ── 3. Install dependencies ──
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      # ── 4. Recreate key.json from GitHub Secret ──
+      - name: Create key.json
+        run: echo "${{ secrets.GA4_KEY_JSON_B64 }}" | base64 --decode > key.json
+
+      # ── 5. Recreate rsa_key.p8 from GitHub Secret ──
+      - name: Create rsa_key.p8
+        run: echo "${{ secrets.RSA_KEY_B64 }}" | base64 --decode > rsa_key.p8
+
+      # ── 6. Create .env from GitHub Secrets ──
+      - name: Create .env file
+        run: |
+          echo "SNOWFLAKE_ACCOUNT=${{ secrets.SNOWFLAKE_ACCOUNT }}" >> .env
+          echo "SNOWFLAKE_USER=${{ secrets.SNOWFLAKE_USER }}" >> .env
+          echo "SNOWFLAKE_PRIVATE_KEY_PATH=rsa_key.p8" >> .env
+          echo "SNOWFLAKE_PRIVATE_KEY_PASSPHRASE=${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}" >> .env
+          echo "SNOWFLAKE_WAREHOUSE=${{ secrets.SNOWFLAKE_WAREHOUSE }}" >> .env
+          echo "SNOWFLAKE_DATABASE=${{ secrets.SNOWFLAKE_DATABASE }}" >> .env
+          echo "SNOWFLAKE_SCHEMA=${{ secrets.SNOWFLAKE_SCHEMA }}" >> .env
+          echo "SNOWFLAKE_ROLE=${{ secrets.SNOWFLAKE_ROLE }}" >> .env
+
+      # ── 7. Run pipeline ──
+      - name: Run GA4 to Snowflake Pipeline
+        run: python ga4_to_snowflake.py
