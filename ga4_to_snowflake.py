@@ -28,27 +28,6 @@ SNOWFLAKE_ROLE               = os.getenv("SNOWFLAKE_ROLE")
 TABLE_NAME                   = "GA4_DAILY_TEST"
 
 # ─────────────────────────────────────────────
-#  FIGURE OUT WHICH DATE TO FETCH NEXT
-# ─────────────────────────────────────────────
-def get_last_monday():
-    today = date.today()
-    days_since_monday = today.weekday()  # Monday=0, Sunday=6
-    last_monday = today - timedelta(days=days_since_monday + 7)
-    return last_monday
-
-def get_next_fetch_date(cursor):
-    """Returns the next date to fetch — last monday if table empty, else last inserted date + 1"""
-    cursor.execute(f"SELECT MAX(DATE) FROM {TABLE_NAME}")
-    result = cursor.fetchone()[0]
-    if result is None:
-        next_date = get_last_monday()
-        print(f"📅 Table is empty — starting from last Monday: {next_date}")
-    else:
-        next_date = result + timedelta(days=1)
-        print(f"📅 Last inserted date: {result} → Fetching next: {next_date}")
-    return next_date
-
-# ─────────────────────────────────────────────
 #  SNOWFLAKE CONNECTION
 # ─────────────────────────────────────────────
 def get_snowflake_connection():
@@ -73,6 +52,20 @@ def get_snowflake_connection():
         schema=SNOWFLAKE_SCHEMA,
         role=SNOWFLAKE_ROLE,
     )
+
+# ─────────────────────────────────────────────
+#  GET YESTERDAY
+# ─────────────────────────────────────────────
+def get_yesterday():
+    return date.today() - timedelta(days=1)
+
+# ─────────────────────────────────────────────
+#  CHECK DUPLICATE
+# ─────────────────────────────────────────────
+def already_inserted(cursor, fetch_date):
+    cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE DATE = %s", (fetch_date,))
+    count = cursor.fetchone()[0]
+    return count > 0
 
 # ─────────────────────────────────────────────
 #  GA4 FETCH
@@ -106,7 +99,7 @@ def fetch_ga4_data(fetch_date):
     rows = []
     for row in response.rows:
         rows.append({
-            "date": datetime.strptime(row.dimension_values[0].value, "%Y%m%d").strftime("%Y-%m-%d"),
+            "date"           : datetime.strptime(row.dimension_values[0].value, "%Y%m%d").strftime("%Y-%m-%d"),
             "device_category": row.dimension_values[1].value,
             "sessions"       : int(row.metric_values[0].value),
         })
@@ -120,7 +113,10 @@ def fetch_ga4_data(fetch_date):
 #  MAIN
 # ─────────────────────────────────────────────
 def main():
-    print("\n🚀 Starting GA4 → Snowflake Pipeline")
+    print("\n🚀 Starting GA4 → Snowflake Daily Pipeline")
+
+    yesterday = get_yesterday()
+    print(f"📅 Fetching data for: {yesterday}")
 
     # ── Connect to Snowflake ──
     print("\n❄️  Connecting to Snowflake...")
@@ -138,19 +134,15 @@ def main():
         )
     """)
 
-    # ── Get next date to fetch ──
-    fetch_date = get_next_fetch_date(cursor)
-
-    # ── Stop if we've caught up to yesterday ──
-    yesterday = date.today() - timedelta(days=1)
-    if fetch_date > yesterday:
-        print(f"\n✅ Already up to date! Latest date {fetch_date - timedelta(days=1)} is yesterday.")
+    # ── Duplicate check ──
+    if already_inserted(cursor, yesterday):
+        print(f"\n⚠️  Data for {yesterday} already exists. Skipping to avoid duplicates.")
         cursor.close()
         conn.close()
         return
 
     # ── Fetch from GA4 ──
-    rows = fetch_ga4_data(fetch_date)
+    rows = fetch_ga4_data(yesterday)
 
     # ── Insert into Snowflake ──
     print(f"\n📥 Inserting {len(rows)} rows into {TABLE_NAME}...")
@@ -162,7 +154,7 @@ def main():
         cursor.execute(insert_query, (row["date"], row["device_category"], row["sessions"]))
 
     conn.commit()
-    print(f"✅ Done! {len(rows)} rows inserted for {fetch_date}.")
+    print(f"✅ Done! {len(rows)} rows inserted for {yesterday}.")
 
     cursor.close()
     conn.close()
